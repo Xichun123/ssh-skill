@@ -228,6 +228,57 @@ class SSHConfigLoaderV3:
 
         return params
 
+    def build_jump_hosts(self, proxy_jump: Optional[str]) -> List[Dict]:
+        """
+        将 ProxyJump 字符串展开为 ParamikoClient 可用的跳板机配置列表
+
+        Args:
+            proxy_jump: OpenSSH ProxyJump 配置，多个跳板机用逗号分隔
+
+        Returns:
+            跳板机配置列表
+        """
+        if not proxy_jump:
+            return []
+
+        jump_hosts = []
+        for jump_alias in [item.strip() for item in proxy_jump.split(',') if item.strip()]:
+            jump_params = self.get_connection_params(jump_alias)
+            jump_hosts.append({
+                'host': jump_params['hostname'],
+                'user': jump_params['user'],
+                'port': jump_params['port'],
+                'password': jump_params.get('password'),
+                'key_file': jump_params.get('key_file'),
+            })
+
+        return jump_hosts
+
+    def build_paramiko_client(self, alias: str):
+        """
+        通过别名创建 ParamikoClient
+
+        适用于需要底层 Paramiko 连接的场景，例如 SFTP、隧道和流式传输。
+        """
+        try:
+            from .paramiko_client import ParamikoClient
+        except ImportError:
+            from paramiko_client import ParamikoClient
+
+        params = self.get_connection_params(alias)
+        client = ParamikoClient(
+            host=params['hostname'],
+            user=params['user'],
+            port=params['port'],
+            password=params.get('password'),
+            key_file=params.get('key_file'),
+            timeout=params['timeout'],
+            jump_hosts=self.build_jump_hosts(params.get('proxy_jump')),
+            forward_agent=params.get('forward_agent', False)
+        )
+        client.alias = alias
+        return client
+
     def from_alias(self, alias: str):
         """
         通过别名创建 SSH 客户端（智能选择）
@@ -267,19 +318,7 @@ class SSHConfigLoaderV3:
             )
         else:
             # 密码认证 → 使用 Paramiko
-            try:
-                from .paramiko_client import ParamikoClient
-            except ImportError:
-                from paramiko_client import ParamikoClient
-
-            client = ParamikoClient(
-                host=params['hostname'],
-                user=params['user'],
-                port=params['port'],
-                password=params.get('password'),
-                key_file=params.get('key_file'),
-                timeout=params['timeout']
-            )
+            client = self.build_paramiko_client(alias)
 
         # 设置别名（用于守护进程标识）
         client.alias = alias

@@ -171,6 +171,7 @@ class SSHTunnel:
         self._last_activity = time.time()
         self._running = False
         self._ssh_client = None
+        self._managed_client = None
         self._server_socket = None
         self._lock = threading.Lock()
         self._connection_params = None
@@ -267,101 +268,27 @@ class SSHTunnel:
 
     def _connect_ssh(self):
         """建立 SSH 连接"""
-        import paramiko
-
         params = self._connection_params
         if not params:
             raise ValueError("连接参数未加载")
 
-        host = params['hostname']
-        user = params['user']
-        port = params['port']
-        password = params.get('password')
-        key_file = params.get('key_file')
-
-        # 解析密钥路径
-        if key_file:
-            key_file = os.path.expanduser(key_file)
-
-        self._ssh_client = paramiko.SSHClient()
-        self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        # 处理 ProxyJump
-        proxy_jump = params.get('proxyjump')
-        proxy_client = None
-        if proxy_jump:
-            proxy_client = self._create_proxy_client(proxy_jump)
+        if self._managed_client and getattr(self._managed_client, 'jump_hosts', None):
+            try:
+                self._managed_client._cleanup_jump_connections()
+            except Exception:
+                pass
+        self._managed_client = None
 
         try:
-            if password:
-                self._ssh_client.connect(
-                    hostname=host,
-                    port=port,
-                    username=user,
-                    password=password,
-                    timeout=30,
-                    sock=proxy_client.get_transport().open_channel(
-                        'direct-tcpip', (host, port), ('', 0)
-                    ) if proxy_client else None
-                )
-            elif key_file:
-                self._ssh_client.connect(
-                    hostname=host,
-                    port=port,
-                    username=user,
-                    key_filename=key_file,
-                    timeout=30,
-                    sock=proxy_client.get_transport().open_channel(
-                        'direct-tcpip', (host, port), ('', 0)
-                    ) if proxy_client else None
-                )
-            else:
-                raise ValueError("未配置认证方式（密码或密钥）")
+            from config_v3 import SSHConfigLoaderV3
+
+            loader = SSHConfigLoaderV3()
+            self._managed_client = loader.build_paramiko_client(self.alias)
+            self._ssh_client = self._managed_client._get_connection()
         except Exception as e:
             if self._ssh_client:
                 self._ssh_client.close()
             raise RuntimeError(f"SSH 连接失败: {e}")
-
-    def _create_proxy_client(self, proxy_jump: str):
-        """创建跳板机连接"""
-        import paramiko
-        from config_v3 import SSHConfigLoaderV3
-
-        loader = SSHConfigLoaderV3()
-        proxy_params = loader.get_connection_params(proxy_jump)
-
-        proxy_client = paramiko.SSHClient()
-        proxy_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        proxy_host = proxy_params['hostname']
-        proxy_port = proxy_params['port']
-        proxy_user = proxy_params['user']
-        proxy_password = proxy_params.get('password')
-        proxy_key = proxy_params.get('key_file')
-
-        if proxy_key:
-            proxy_key = os.path.expanduser(proxy_key)
-
-        if proxy_password:
-            proxy_client.connect(
-                hostname=proxy_host,
-                port=proxy_port,
-                username=proxy_user,
-                password=proxy_password,
-                timeout=30
-            )
-        elif proxy_key:
-            proxy_client.connect(
-                hostname=proxy_host,
-                port=proxy_port,
-                username=proxy_user,
-                key_filename=proxy_key,
-                timeout=30
-            )
-        else:
-            raise ValueError(f"跳板机 {proxy_jump} 未配置认证方式")
-
-        return proxy_client
 
     def _handle_tunnel(self, client_sock: socket.socket):
         """处理单个 tunnel 连接"""
@@ -455,6 +382,13 @@ class SSHTunnel:
                     except:
                         pass
 
+                if self._managed_client and getattr(self._managed_client, 'jump_hosts', None):
+                    try:
+                        self._managed_client._cleanup_jump_connections()
+                    except Exception:
+                        pass
+                self._managed_client = None
+
                 self._connect_ssh()
                 return  # 重连成功
             except Exception:
@@ -494,6 +428,13 @@ class SSHTunnel:
                 self._ssh_client.close()
             except:
                 pass
+
+        if self._managed_client and getattr(self._managed_client, 'jump_hosts', None):
+            try:
+                self._managed_client._cleanup_jump_connections()
+            except Exception:
+                pass
+        self._managed_client = None
 
         # 删除信息文件
         try:
@@ -808,4 +749,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-

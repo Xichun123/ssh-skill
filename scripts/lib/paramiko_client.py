@@ -624,52 +624,34 @@ class ParamikoClient:
             SSHResult对象
         """
         cmd_timeout = timeout or self.timeout
+        client = None
+        channel = None
+        stdout = None
+        stderr = None
 
         try:
-            # 创建新连接（启用 agent）
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-            connect_kwargs = {
-                'hostname': self.host,
-                'port': self.port,
-                'username': self.user,
-                'timeout': cmd_timeout,
-                'allow_agent': True,
-                'look_for_keys': True,
-            }
-            if self.key_file:
-                connect_kwargs['key_filename'] = self.key_file
-            if self.password:
-                connect_kwargs['password'] = self.password
-
-            client.connect(**connect_kwargs)
-
-            # 启用 agent forwarding
+            client = self._get_connection()
             transport = client.get_transport()
-            session = transport.open_session()
+            if transport is None or not transport.is_active():
+                raise RuntimeError("SSH transport is not active")
+
+            channel = transport.open_session()
+            channel.settimeout(cmd_timeout)
+            channel.get_pty()
+
             try:
-                paramiko.agent.AgentRequestHandler(session)
+                # agent forwarding 必须绑定到实际执行命令的 channel 上
+                paramiko.agent.AgentRequestHandler(channel)
             except Exception:
                 pass  # agent forwarding 不可用时继续
 
-            # 执行命令（使用 PTY）
-            stdin, stdout, stderr = client.exec_command(
-                command, timeout=cmd_timeout, get_pty=True
-            )
+            channel.exec_command(command)
+            stdout = channel.makefile('rb', -1)
+            stderr = channel.makefile_stderr('rb', -1)
 
             stdout_text = stdout.read().decode('utf-8', errors='replace')
             stderr_text = stderr.read().decode('utf-8', errors='replace')
-            exit_code = stdout.channel.recv_exit_status()
-
-            try:
-                session.close()
-            except Exception:
-                pass
-            try:
-                client.close()
-            except Exception:
-                pass
+            exit_code = channel.recv_exit_status()
 
             return SSHResult(
                 success=(exit_code == 0),
@@ -684,6 +666,29 @@ class ParamikoClient:
                 stderr=f"Agent forward execution error: {str(e)}",
                 exit_code=-1
             )
+        finally:
+            try:
+                if stdout:
+                    stdout.close()
+            except Exception:
+                pass
+            try:
+                if stderr:
+                    stderr.close()
+            except Exception:
+                pass
+            try:
+                if channel:
+                    channel.close()
+            except Exception:
+                pass
+            if self.jump_hosts:
+                try:
+                    if client:
+                        client.close()
+                except Exception:
+                    pass
+                self._cleanup_jump_connections()
 
     def upload(self, local_path: str, remote_path: str, timeout: Optional[int] = None, show_progress: bool = True) -> SSHResult:
         """

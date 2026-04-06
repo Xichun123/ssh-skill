@@ -150,7 +150,7 @@ pip install paramiko
 
 ### Configuration
 
-1. Place the `ssh-skill` directory under `~/.claude/skills/`
+1. Place the `ssh-skill` directory under `~/.codex/skills/`
 2. Configure SSH key or password authentication
 3. Start using!
 
@@ -159,35 +159,35 @@ pip install paramiko
 ### Execute Remote Commands
 
 ```bash
-python ~/.claude/skills/ssh-skill/scripts/ssh_execute.py prod-web-01 "systemctl status nginx"
+python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py prod-web-01 "systemctl status nginx"
 ```
 
 ### Upload Files
 
 ```bash
 # Small files (fast)
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
 
 # Large files (auto progress display)
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
 
 # Resume support
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
 
 # Recursive directory upload
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
 ```
 
 ### Download Files
 
 ```bash
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
 ```
 
 ### Server-to-Server Transfer
 
 ```bash
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
 ```
 
 ## 🎯 Use Cases

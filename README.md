@@ -150,7 +150,7 @@ pip install paramiko
 
 ### 配置
 
-1. 将 `ssh-skill` 目录放到 `~/.claude/skills/` 下
+1. 将 `ssh-skill` 目录放到 `~/.codex/skills/` 下
 2. 配置 SSH 密钥或密码认证
 3. 开始使用！
 
@@ -159,35 +159,35 @@ pip install paramiko
 ### 执行远程命令
 
 ```bash
-python ~/.claude/skills/ssh-skill/scripts/ssh_execute.py prod-web-01 "systemctl status nginx"
+python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py prod-web-01 "systemctl status nginx"
 ```
 
 ### 上传文件
 
 ```bash
 # 小文件（快速）
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
 
 # 大文件（自动显示进度）
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
 
 # 断点续传
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
 
 # 递归上传目录
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
 ```
 
 ### 下载文件
 
 ```bash
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
 ```
 
 ### 服务器间传输
 
 ```bash
-MSYS_NO_PATHCONV=1 python ~/.claude/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
+MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
 ```
 
 ## 🎯 使用场景

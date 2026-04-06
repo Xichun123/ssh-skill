@@ -92,9 +92,26 @@ def get_connection_params(alias):
 
 def create_ssh_client(alias):
     """根据别名创建 SSH 客户端（智能选择）"""
+    if isinstance(alias, dict):
+        alias = alias.get('alias')
+    if not isinstance(alias, str) or not alias:
+        raise TypeError(f'客户端别名无效: {alias!r}')
+
     from config_v3 import SSHConfigLoaderV3
     loader = SSHConfigLoaderV3()
     return loader.from_alias(alias)
+
+
+def create_paramiko_client(alias):
+    """根据别名创建 Paramiko 客户端（用于 SFTP/隧道类场景）"""
+    if isinstance(alias, dict):
+        alias = alias.get('alias')
+    if not isinstance(alias, str) or not alias:
+        raise TypeError(f'Paramiko 客户端别名无效: {alias!r}')
+
+    from config_v3 import SSHConfigLoaderV3
+    loader = SSHConfigLoaderV3()
+    return loader.build_paramiko_client(alias)
 
 
 def get_remote_file_size(alias, remote_path):
@@ -175,11 +192,8 @@ def stream_transfer(source_alias, source_path, dest_alias, dest_path,
 
     支持单个文件传输。数据经过本地但不存储在本地。
     """
-    source_params = get_connection_params(source_alias)
-    dest_params = get_connection_params(dest_alias)
-
-    source_client = create_ssh_client(source_params)
-    dest_client = create_ssh_client(dest_params)
+    source_client = create_paramiko_client(source_alias)
+    dest_client = create_paramiko_client(dest_alias)
 
     source_ssh = source_client._get_connection()
     dest_ssh = dest_client._get_connection()
@@ -383,10 +397,7 @@ def direct_transfer(source_alias, source_path, dest_alias, dest_path,
 
     需要 SSH agent forwarding 或预配置密钥。
     """
-    import paramiko
-
     dest_params = get_connection_params(dest_alias)
-    source_params = get_connection_params(source_alias)
     dest_host = dest_params['hostname']
     dest_user = dest_params['user']
     dest_port = dest_params['port']
@@ -406,45 +417,38 @@ def direct_transfer(source_alias, source_path, dest_alias, dest_path,
             f"'{source_path}' '{dest_user}@{dest_host}:{dest_path}'"
         )
 
-    # 连接源服务器（启用 agent forwarding）
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    connect_kwargs = {
-        'hostname': source_params['hostname'],
-        'port': source_params['port'],
-        'username': source_params['user'],
-        'timeout': 30,
-        'allow_agent': True,
-        'look_for_keys': True,
-    }
-
-    if source_params.get('key_file'):
-        connect_kwargs['key_filename'] = source_params['key_file']
-    if source_params.get('password'):
-        connect_kwargs['password'] = source_params['password']
-
-    client.connect(**connect_kwargs)
-
-    # 启用 agent forwarding
-    transport = client.get_transport()
-    session = transport.open_session()
-
-    try:
-        # 请求 agent forwarding
-        paramiko.agent.AgentRequestHandler(session)
-    except Exception:
-        pass  # agent forwarding 不可用时继续尝试
-
+    source_client = create_paramiko_client(source_alias)
     start_time = time.time()
     output_lines = []
+    ssh_client = None
+    channel = None
+    stdout = None
+    stderr = None
 
     try:
-        # 执行传输命令（使用 PTY 以获取进度输出）
-        stdin, stdout, stderr = client.exec_command(cmd, timeout=timeout, get_pty=True)
+        import paramiko
 
-        for line in stdout:
-            stripped = line.strip()
+        ssh_client = source_client._get_connection()
+        transport = ssh_client.get_transport()
+        if transport is None or not transport.is_active():
+            raise RuntimeError("SSH 连接不可用")
+
+        channel = transport.open_session()
+        channel.settimeout(timeout)
+        channel.get_pty()
+
+        try:
+            # agent forwarding 必须绑定到实际执行命令的 channel 上
+            paramiko.agent.AgentRequestHandler(channel)
+        except Exception:
+            pass
+
+        channel.exec_command(cmd)
+        stdout = channel.makefile('rb', -1)
+        stderr = channel.makefile_stderr('rb', -1)
+
+        for raw_line in stdout:
+            stripped = raw_line.decode('utf-8', errors='replace').strip()
             if stripped:
                 output_lines.append(stripped)
                 if progress:
@@ -456,8 +460,8 @@ def direct_transfer(source_alias, source_path, dest_alias, dest_path,
                         )
                         sys.stderr.flush()
 
-        exit_code = stdout.channel.recv_exit_status()
-        stderr_text = stderr.read().decode('utf-8', errors='replace')
+        exit_code = channel.recv_exit_status()
+        stderr_text = stderr.read().decode('utf-8', errors='replace') if stderr else ''
         elapsed = time.time() - start_time
 
         return {
@@ -479,13 +483,30 @@ def direct_transfer(source_alias, source_path, dest_alias, dest_path,
         }
     finally:
         try:
-            session.close()
+            if stdout:
+                stdout.close()
         except Exception:
             pass
         try:
-            client.close()
+            if stderr:
+                stderr.close()
         except Exception:
             pass
+        try:
+            if channel:
+                channel.close()
+        except Exception:
+            pass
+        if getattr(source_client, 'jump_hosts', None):
+            try:
+                if ssh_client:
+                    ssh_client.close()
+            except Exception:
+                pass
+            try:
+                source_client._cleanup_jump_connections()
+            except Exception:
+                pass
 
 
 def _parse_transfer_progress(line, is_rsync=False):
@@ -516,7 +537,7 @@ def validate_transfer(source_alias, dest_alias):
 
     # 检查源服务器连接
     try:
-        client = create_ssh_client(get_connection_params(source_alias))
+        client = create_ssh_client(source_alias)
         result = client.execute("echo OK")
         if not result.success:
             issues.append(f"无法连接到源服务器 {source_alias}: {result.stderr}")
@@ -525,7 +546,7 @@ def validate_transfer(source_alias, dest_alias):
 
     # 检查目标服务器连接
     try:
-        client = create_ssh_client(get_connection_params(dest_alias))
+        client = create_ssh_client(dest_alias)
         result = client.execute("echo OK")
         if not result.success:
             issues.append(f"无法连接到目标服务器 {dest_alias}: {result.stderr}")
