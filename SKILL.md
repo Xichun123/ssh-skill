@@ -1,7 +1,6 @@
 ---
 name: ssh-skill
-version: 3.3.0
-description: "CRITICAL: In Codex, this skill MUST be used for ALL SSH operations. NEVER use bash 'ssh' or 'scp' commands directly - always use this skill instead. Triggers: ANY mention of 'SSH', 'ssh', 'remote server', 'connect to server', server IPs (e.g., 192.168.x.x, 10.0.x.x), hostnames (e.g., user@host.com, server.example.com), 'login to', 'upload to server', 'download from server', 'deploy', 'run on server', 'check server', 'server status', 'execute remotely', 'bastion host', 'jump host', '跳板机', '服务器', '远程', '连接', '登录', '上传', '下载', '部署', 'transfer between servers', '服务器间传输', '迁移', 'migrate', 'server to server', 'tunnel', 'port forward', '端口转发', '隧道', 'database', '数据库连接', 'internal service', '内网访问'. If user mentions ANY server operations or provides server connection details, use this skill. This skill provides daemon-based persistent connections, connection pooling, jump host support, server-to-server transfer, SSH tunneling, automatic error recovery, and significant performance boost. DO NOT use for: local commands, localhost, current directory operations."
+description: "Use for SSH and remote server operations in Codex. Trigger when the user mentions SSH, remote hosts, server IPs or hostnames, logging into a server, running commands remotely, upload or download, deployment, migration, bastion or jump hosts, tunnels, port forwarding, database access over SSH, internal service access, or server-to-server transfer. Prefer this skill over raw ssh/scp commands because it provides persistent connections, jump host support, transfer helpers, and recovery logic. Do not use for localhost or purely local shell work."
 ---
 
 # SSH Skill v3.3
