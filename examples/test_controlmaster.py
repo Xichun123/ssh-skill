@@ -8,6 +8,7 @@ ControlMaster 复用性能对比（可选回归）
 
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -18,6 +19,14 @@ HOST = "192.0.2.10"
 USER = "deploy"
 KEY_FILE = "./keys/example_id_ed25519"
 ITERATIONS = 10
+
+
+def _control_path() -> str:
+    # OpenSSH ControlPath uses a Unix socket; keep the path short on macOS.
+    socket_dir = "/tmp" if os.path.isdir("/tmp") else tempfile.gettempdir()
+    digest = hashlib.sha1(f"{USER}@{HOST}".encode("utf-8")).hexdigest()[:12]
+    return os.path.join(socket_dir, f"ssh-test-{digest}")
+
 
 def test_without_controlmaster() -> float:
     print("\n" + "=" * 60)
@@ -54,7 +63,7 @@ def test_with_controlmaster() -> float:
     print("测试2: ControlMaster方式（连接复用）")
     print("=" * 60)
 
-    control_path = os.path.join(tempfile.gettempdir(), f"ssh-test-{USER}@{HOST}")
+    control_path = _control_path()
     if os.path.exists(control_path):
         try:
             os.remove(control_path)

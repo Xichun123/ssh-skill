@@ -33,6 +33,7 @@ import json
 import time
 import argparse
 import posixpath
+import re
 
 # 添加 lib 到路径
 _script_dir = os.path.dirname(os.path.abspath(__file__))
