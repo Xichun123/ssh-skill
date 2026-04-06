@@ -89,22 +89,12 @@ def start_daemon_background(alias):
     """后台启动守护进程"""
     daemon_script = os.path.join(_script_dir, 'ssh_daemon.py')
     try:
-        if os.name == 'nt':
-            # Windows: 使用 CREATE_NO_WINDOW
-            CREATE_NO_WINDOW = 0x08000000
-            subprocess.Popen(
-                [sys.executable, daemon_script, 'start', alias],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=CREATE_NO_WINDOW
-            )
-        else:
-            subprocess.Popen(
-                [sys.executable, daemon_script, 'start', alias],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True
-            )
+        subprocess.Popen(
+            [sys.executable, daemon_script, 'start', alias],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
         # 等待守护进程启动
         import time
         for _ in range(10):

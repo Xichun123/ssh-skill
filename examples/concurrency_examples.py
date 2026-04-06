@@ -10,15 +10,14 @@ def main() -> None:
         """
 多服务器（servers 字典）选择某个环境执行：
 
-  python ../scripts/ssh_execute.py ./config_multi_servers.json "uptime" --server dev
+  python ../scripts/ssh_cluster.py "uptime" --environment development --parallel
 
 如需对多台机器并发执行，请使用 ssh_cluster.py（更适合运维批量操作）：
 
-  python ../scripts/ssh_cluster.py ./config_multi_servers.json "df -h"
+  python ../scripts/ssh_cluster.py "df -h" --hosts "dev-web-01,dev-web-02" --parallel
 """
     )
 
 
 if __name__ == "__main__":
     main()
-

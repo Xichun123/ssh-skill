@@ -261,21 +261,13 @@ class ParamikoClient:
         import os
 
         # 创建临时脚本文件
-        fd, script_path = tempfile.mkstemp(suffix='.sh' if os.name != 'nt' else '.bat', text=True)
-
-        if os.name == 'nt':
-            # Windows 批处理脚本
-            script_content = f'@echo off\necho {self.password}\n'
-        else:
-            # Unix shell 脚本
-            script_content = f'#!/bin/sh\necho "{self.password}"\n'
+        fd, script_path = tempfile.mkstemp(suffix='.sh', text=True)
+        script_content = f'#!/bin/sh\necho "{self.password}"\n'
 
         with os.fdopen(fd, 'w') as f:
             f.write(script_content)
 
-        # 设置可执行权限（Unix）
-        if os.name != 'nt':
-            os.chmod(script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        os.chmod(script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         return script_path
 
@@ -346,12 +338,7 @@ class ParamikoClient:
         cmd.extend(["-P", str(self.port)])
         cmd.extend(["-o", "StrictHostKeyChecking=no"])
 
-        # UserKnownHostsFile
-        import os
-        if os.name == "nt":
-            cmd.extend(["-o", "UserKnownHostsFile=NUL"])
-        else:
-            cmd.extend(["-o", "UserKnownHostsFile=/dev/null"])
+        cmd.extend(["-o", "UserKnownHostsFile=/dev/null"])
 
         # ProxyJump 支持
         jump_string = self._build_jump_string()

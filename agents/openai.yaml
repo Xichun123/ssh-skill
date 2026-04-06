@@ -1,0 +1,7 @@
+interface:
+  display_name: "SSH Skill"
+  short_description: "Operate remote servers over SSH with Codex workflows"
+  default_prompt: "Use $ssh-skill to connect to configured servers, run commands, transfer files, or manage SSH tunnels."
+
+policy:
+  allow_implicit_invocation: true

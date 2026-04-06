@@ -72,7 +72,7 @@ def normalize_key_path(key_path):
     if key_path.startswith('~/.ssh/'):
         return key_path
 
-    # Windows 绝对路径转换为 ~/.ssh/ 格式
+    # 绝对路径转换为 ~/.ssh/ 格式
     # C:\Users\zhangyang\.ssh\keyfile -> ~/.ssh/keyfile
     # C:\Users\zhangyang/.ssh\keyfile -> ~/.ssh/keyfile
     # C:/Users/zhangyang/.ssh/keyfile -> ~/.ssh/keyfile

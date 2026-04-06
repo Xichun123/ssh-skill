@@ -1,20 +1,20 @@
 # SSH Skill - 高性能 SSH 操作技能
 
-**中文** | [English](README_EN.md)
+**中文**
 
-> 为 Claude Code 打造的企业级 SSH 管理工具，让远程服务器操作像本地一样简单高效
+> 为 Codex 打造的企业级 SSH 管理工具，让远程服务器操作像本地一样简单高效
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 📢 最近更新
 
-### v3.3 - Windows 原生 SSH 适配 & Passphrase 密钥支持（2026-03-24）
+### v3.3 - macOS 精简维护 & Passphrase 密钥支持（2026-04-06）
 
-- 🔑 **Passphrase 密钥完整支持**：通过 Windows SSH Agent 集成，passphrase 保护的密钥可以无感使用，无需每次交互输入密码
-- 🪟 **Windows 原生 SSH 适配**：自动定位 `%SystemRoot%\System32\OpenSSH\ssh.exe`，解决 Git SSH 与 Windows 原生 SSH 的 PATH 优先级冲突
-- 🔌 **SSH 隧道管理**：新增本地端口转发功能，支持守护进程模式、自动重连、心跳检测，可便捷访问远程数据库和内网服务
-- 🛡️ **Windows SSH Agent 工具**：一键检测、启动和配置 Windows OpenSSH Authentication Agent 服务
+- 🔑 **Passphrase 密钥支持**：继续保留 passphrase 密钥识别与 `ssh-agent` 提示流程
+- 🍎 **macOS 单平台维护**：移除 Windows 专用兼容层、PowerShell 工具和 MSYS 说明
+- 🔌 **SSH 隧道管理**：本地端口转发保留守护进程模式、自动重连和心跳检测
+- 🧹 **文档与示例收敛**：所有命令和示例统一按 macOS/Unix 习惯维护
 
 ## ✨ 核心特性
 
@@ -28,7 +28,7 @@
 | **守护进程** | **~0.12s** | **~1.2s** | **~3.6s** | **🔥 3.75x** |
 
 - 首次连接自动启动守护进程
-- 多个 Claude Code 实例共享连接
+- 多个 Codex 会话共享连接
 - 自动心跳检测和断线重连
 - 空闲 30 分钟自动退出
 
@@ -166,28 +166,28 @@ python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py prod-web-01 "systemctl s
 
 ```bash
 # 小文件（快速）
-MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
+python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
 
 # 大文件（自动显示进度）
-MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
+python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
 
 # 断点续传
-MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
+python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
 
 # 递归上传目录
-MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
+python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
 ```
 
 ### 下载文件
 
 ```bash
-MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
+python ~/.codex/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
 ```
 
 ### 服务器间传输
 
 ```bash
-MSYS_NO_PATHCONV=1 python ~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
+python ~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
 ```
 
 ## 🎯 使用场景
@@ -357,9 +357,9 @@ Host internal-server
     ProxyJump bastion
 ```
 
-## 🎨 与 Claude Code 集成
+## 🎨 与 Codex 集成
 
-在 Claude Code 中，AI 会自动使用 ssh-skill 处理所有 SSH 操作：
+在 Codex 中，AI 会在检测到 SSH 或远程服务器意图时自动使用 ssh-skill；你也可以显式提到 `$ssh-skill` 强制调用：
 
 ```
 用户：在 prod-web-01 上检查 Nginx 状态

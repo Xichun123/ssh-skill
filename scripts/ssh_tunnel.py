@@ -122,17 +122,8 @@ def list_all_tunnels() -> List[Dict]:
 def _is_process_alive(pid: int) -> bool:
     """检查进程是否存活"""
     try:
-        if os.name == 'nt':
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            handle = kernel32.OpenProcess(0x1000, False, pid)
-            if handle:
-                kernel32.CloseHandle(handle)
-                return True
-            return False
-        else:
-            os.kill(pid, 0)
-            return True
+        os.kill(pid, 0)
+        return True
     except (OSError, PermissionError):
         return False
 
@@ -486,29 +477,17 @@ def cmd_start(args):
         }, ensure_ascii=False))
         return 1
 
-    # 启动守护进程
-    if os.name == 'nt':
-        # Windows: 使用 subprocess 后台启动
-        import subprocess
-        subprocess.Popen(
-            [sys.executable, __file__, '_daemon', alias, str(local_port), remote_host, str(remote_port)],
-            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.DEVNULL
-        )
-    else:
-        # Unix: fork 后台进程
-        pid = os.fork()
-        if pid == 0:
-            # 子进程
-            os.setsid()
-            sys.stdin.close()
-            sys.stdout = open(os.devnull, 'w')
-            sys.stderr = open(os.devnull, 'w')
-            tunnel = SSHTunnel(alias, local_port, remote_host, remote_port)
-            tunnel.start()
-            sys.exit(0)
+    # macOS/Unix: fork 后台进程
+    pid = os.fork()
+    if pid == 0:
+        # 子进程
+        os.setsid()
+        sys.stdin.close()
+        sys.stdout = open(os.devnull, 'w')
+        sys.stderr = open(os.devnull, 'w')
+        tunnel = SSHTunnel(alias, local_port, remote_host, remote_port)
+        tunnel.start()
+        sys.exit(0)
 
     # 等待守护进程启动
     time.sleep(2)
@@ -609,17 +588,7 @@ def cmd_stop(args):
 
     # 终止进程
     try:
-        if os.name == 'nt':
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            handle = kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE
-            if handle:
-                kernel32.TerminateProcess(handle, 0)
-                kernel32.CloseHandle(handle)
-            else:
-                raise OSError(f"无法打开进程 {pid}")
-        else:
-            os.kill(pid, signal.SIGTERM)
+        os.kill(pid, signal.SIGTERM)
 
         # 等待进程退出
         time.sleep(1)
@@ -667,15 +636,7 @@ def cmd_stop_all(args):
         pid = tunnel_info.get('pid')
 
         try:
-            if os.name == 'nt':
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
-                handle = kernel32.OpenProcess(0x0001, False, pid)
-                if handle:
-                    kernel32.TerminateProcess(handle, 0)
-                    kernel32.CloseHandle(handle)
-            else:
-                os.kill(pid, signal.SIGTERM)
+            os.kill(pid, signal.SIGTERM)
 
             # 清理信息文件
             info_path = get_tunnel_info_path(tunnel_id)

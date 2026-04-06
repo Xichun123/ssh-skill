@@ -80,17 +80,8 @@ def read_daemon_info(alias: str) -> dict:
 def _is_process_alive(pid: int) -> bool:
     """检查进程是否存活"""
     try:
-        if os.name == 'nt':
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-            if handle:
-                kernel32.CloseHandle(handle)
-                return True
-            return False
-        else:
-            os.kill(pid, 0)
-            return True
+        os.kill(pid, 0)
+        return True
     except (OSError, PermissionError):
         return False
 

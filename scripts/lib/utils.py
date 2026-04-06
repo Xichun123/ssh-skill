@@ -5,7 +5,6 @@
 """
 
 import os
-import platform
 import subprocess
 from typing import Optional
 
@@ -66,12 +65,10 @@ def validate_key_file(key_file: str) -> tuple[bool, str]:
     if not os.path.isfile(key_file):
         return False, f"密钥路径不是文件: {key_file}"
 
-    # 在Unix系统上检查文件权限
-    if platform.system() != "Windows":
-        stat_info = os.stat(key_file)
-        mode = stat_info.st_mode & 0o777
-        if mode & 0o077:  # 检查group和other权限
-            return False, f"密钥文件权限过于宽松，应该设置为600: {key_file}"
+    stat_info = os.stat(key_file)
+    mode = stat_info.st_mode & 0o777
+    if mode & 0o077:  # 检查group和other权限
+        return False, f"密钥文件权限过于宽松，应该设置为600: {key_file}"
 
     return True, ""
 

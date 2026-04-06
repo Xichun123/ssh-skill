@@ -36,16 +36,16 @@
 - `config_usage_examples.py`：如何加载配置文件
 - `test_controlmaster.py`：ControlMaster 复用行为演示
 
-## 静态冒烟测试（推荐）
+## 静态冒烟测试（推荐，macOS）
 
 用于确保示例 JSON 长期保持可用（结构正确、元数据齐全），不需要真实连服务器：
 
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\\run_smoke_tests.ps1
+```bash
+./run_smoke_tests.sh
 ```
 
 如只想做结构校验、不强制元数据：
 
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\\run_smoke_tests.ps1 -StrictMetadata:$false
+```bash
+./run_smoke_tests.sh --no-strict-metadata
 ```

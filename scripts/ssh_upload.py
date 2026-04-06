@@ -26,25 +26,10 @@ import sys
 import os
 import json
 import argparse
-import re
 
 # 添加lib到路径
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_script_dir, 'lib'))
-
-
-def _fix_remote_path(path):
-    """修复被 MSYS bash 转换的远程路径（Windows 环境）"""
-    # 检测 MSYS 路径转换：X:/... 或 X:\...
-    if re.match(r'^[A-Za-z]:[/\\]', path):
-        print(json.dumps({
-            'success': False,
-            'error': f'Remote path looks like a Windows path (MSYS conversion): {path}. '
-                     f'Use MSYS_NO_PATHCONV=1 prefix or quote the path.'
-        }, ensure_ascii=True, indent=2), file=sys.stderr)
-        sys.exit(1)
-    return path
-
 
 def progress_callback(progress):
     """进度回调：输出 JSON 进度到 stderr"""
@@ -69,7 +54,7 @@ def main():
                         help='Disable progress output')
 
     args = parser.parse_args()
-    remote_path = _fix_remote_path(args.remote_path)
+    remote_path = args.remote_path
 
     try:
         # 加载配置

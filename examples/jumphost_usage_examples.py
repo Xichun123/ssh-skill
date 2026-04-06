@@ -8,25 +8,24 @@
 def main() -> None:
     print(
         """
-单跳板机（推荐：使用 config_jump_single_key.json）：
+单跳板机（推荐：在 `~/.ssh/config` 中配置 ProxyJump）：
 
-  python ../scripts/ssh_execute.py ./config_jump_single_key.json "whoami && hostname"
+  python ../scripts/ssh_execute.py internal-app-01 "whoami && hostname"
 
-双跳板机（推荐：使用 config_jump_double.json）：
+双跳板机：
 
-  python ../scripts/ssh_execute.py ./config_jump_double.json "whoami && hostname"
+  python ../scripts/ssh_execute.py internal-db-01 "whoami && hostname"
 
-简化写法（jump_hosts 只写字符串主机名）：
+简化写法：
 
-  python ../scripts/ssh_execute.py ./config_jump_simple.json "uptime"
+  python ../scripts/ssh_execute.py internal-cache-01 "uptime"
 
 注意：
-- 示例配置全部是占位符/保留网段 IP，请按你的真实环境替换后使用。
-- 遇到需要一次性初始化的步骤（例如写入 authorized_keys）可以临时用系统 ssh，但后续日常操作必须回到本 skill。
+- 示例 alias 需要先在 `~/.ssh/config` 中配置完成。
+- 跳板链路交给 `ProxyJump`，日常执行仍统一走本 skill。
 """
     )
 
 
 if __name__ == "__main__":
     main()
-

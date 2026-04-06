@@ -7,52 +7,7 @@
 
 import subprocess
 import os
-import json
 from typing import Optional, Dict, Tuple
-
-
-def _get_windows_native_ssh_path(exe_name: str = 'ssh.exe') -> Optional[str]:
-    """
-    获取 Windows 原生 OpenSSH 可执行文件的完整路径
-
-    通过 %SystemRoot% 环境变量动态定位 System32\\OpenSSH 目录，
-    而非依赖 PATH 查找。这样可以避免 Git Bash 的 ssh.exe 优先级
-    高于 Windows 原生版本的问题。
-
-    Git 的 ssh.exe 无法访问 Windows SSH Agent 服务，必须使用原生版本。
-
-    Args:
-        exe_name: 可执行文件名，如 'ssh.exe'、'ssh-add.exe'
-
-    Returns:
-        完整路径字符串，不存在则返回 None
-    """
-    if os.name != 'nt':
-        return None
-    system_root = os.environ.get('SystemRoot', r'C:\Windows')
-    exe_path = os.path.join(system_root, 'System32', 'OpenSSH', exe_name)
-    if os.path.isfile(exe_path):
-        return exe_path
-    return None
-
-
-def check_windows_ssh_availability() -> Tuple[bool, str]:
-    """
-    检查 Windows 原生 OpenSSH 客户端是否可用
-
-    Returns:
-        (is_available, message_or_path) 元组
-        - 可用时：(True, ssh.exe 完整路径)
-        - 不可用时：(False, 错误信息)
-    """
-    if os.name != 'nt':
-        return False, "非 Windows 系统"
-
-    ssh_path = _get_windows_native_ssh_path('ssh.exe')
-    if not ssh_path:
-        return False, "未安装 Windows 原生 OpenSSH 客户端（System32\\OpenSSH\\ssh.exe 不存在）"
-
-    return True, ssh_path
 
 
 def should_use_native_ssh(ssh_config: dict, metadata: dict = None) -> Tuple[bool, str]:
@@ -170,9 +125,6 @@ def execute_native_ssh(
     """
     使用原生 ssh 命令执行远程命令
 
-    Windows 平台：通过 PowerShell 执行 SSH（以访问 Windows SSH Agent）
-    Unix/Linux：直接执行 SSH
-
     Args:
         alias: SSH 别名
         command: 要执行的命令
@@ -185,47 +137,14 @@ def execute_native_ssh(
     if ssh_config_path is None:
         ssh_config_path = os.path.expanduser("~/.ssh/config")
 
-    # Windows 平台：通过 PowerShell 执行 SSH（才能访问 Windows SSH Agent）
-    if os.name == 'nt':
-        # 检查 OpenSSH 是否可用
-        ssh_available, ssh_msg = check_windows_ssh_availability()
-        if not ssh_available:
-            return {
-                'success': False,
-                'exit_code': -1,
-                'stdout': '',
-                'stderr': f'Windows OpenSSH 不可用: {ssh_msg}\n\n' +
-                         '启用方法（管理员 PowerShell）：\n' +
-                         'Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0\n\n' +
-                         '或通过设置界面：\n' +
-                         '设置 → 应用 → 可选功能 → 添加功能 → OpenSSH 客户端',
-                'method': 'native_ssh_windows'
-            }
-
-        # 使用原生 SSH 路径（而非 PATH 中优先级更高的 Git SSH）
-        native_ssh_exe = ssh_msg  # check_windows_ssh_availability 成功时返回完整路径
-
-        # 转换路径为 Windows 格式
-        ssh_config_path_win = ssh_config_path.replace('/', '\\')
-
-        # 构建 PowerShell SSH 命令
-        # 使用 & "path" 语法指定原生 SSH，-NoProfile 加快启动
-        ssh_cmd = [
-            'powershell',
-            '-NoProfile',
-            '-Command',
-            f'& "{native_ssh_exe}" -F "{ssh_config_path_win}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new {alias} "{command}"'
-        ]
-    else:
-        # Unix/Linux：直接执行 SSH
-        ssh_cmd = [
-            'ssh',
-            '-F', ssh_config_path,
-            '-o', 'BatchMode=yes',
-            '-o', 'StrictHostKeyChecking=accept-new',
-            alias,
-            command
-        ]
+    ssh_cmd = [
+        'ssh',
+        '-F', ssh_config_path,
+        '-o', 'BatchMode=yes',
+        '-o', 'StrictHostKeyChecking=accept-new',
+        alias,
+        command
+    ]
 
     try:
         result = subprocess.run(
@@ -242,7 +161,7 @@ def execute_native_ssh(
             'exit_code': result.returncode,
             'stdout': result.stdout,
             'stderr': result.stderr,
-            'method': 'native_ssh_windows' if os.name == 'nt' else 'native_ssh'
+            'method': 'native_ssh'
         }
 
     except subprocess.TimeoutExpired:
@@ -251,7 +170,7 @@ def execute_native_ssh(
             'exit_code': -1,
             'stdout': '',
             'stderr': f'命令执行超时（{timeout}秒）',
-            'method': 'native_ssh_windows' if os.name == 'nt' else 'native_ssh'
+            'method': 'native_ssh'
         }
 
     except Exception as e:
@@ -260,7 +179,7 @@ def execute_native_ssh(
             'exit_code': -1,
             'stdout': '',
             'stderr': f'执行失败: {str(e)}',
-            'method': 'native_ssh_windows' if os.name == 'nt' else 'native_ssh'
+            'method': 'native_ssh'
         }
 
 
@@ -271,50 +190,6 @@ def check_ssh_agent() -> Tuple[bool, str]:
     Returns:
         (is_available, message) 元组
     """
-    # Windows 特殊处理：直接检查 Windows SSH Agent 服务
-    if os.name == 'nt':
-        try:
-            # 检查服务状态
-            result = subprocess.run(
-                ['powershell', '-NoProfile', '-Command',
-                 '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' +
-                 'Get-Service ssh-agent | Select-Object Status | ConvertTo-Json'],
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=5
-            )
-
-            if result.returncode == 0:
-                import json
-                service_info = json.loads(result.stdout)
-                status = service_info.get('Status', 0)
-
-                if status == 4:  # Running
-                    # 使用 Windows 原生 ssh-add（Git 的 ssh-add 无法连接 Windows Agent）
-                    native_ssh_add = _get_windows_native_ssh_path('ssh-add.exe')
-                    ssh_add_cmd = f'& "{native_ssh_add}" -l' if native_ssh_add else 'ssh-add -l'
-                    key_result = subprocess.run(
-                        ['powershell', '-NoProfile', '-Command', ssh_add_cmd],
-                        capture_output=True,
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace',
-                        timeout=5
-                    )
-
-                    if key_result.returncode == 0:
-                        key_count = len([line for line in key_result.stdout.strip().split('\n') if line])
-                        return True, f"Windows SSH Agent 运行中，已加载 {key_count} 个密钥"
-                    elif key_result.returncode == 1:
-                        return False, "Windows SSH Agent 运行中，但未加载任何密钥（运行 ssh-add 添加密钥）"
-                else:
-                    return False, "Windows SSH Agent 服务未运行"
-        except Exception as e:
-            pass  # 降级到 Unix 检测逻辑
-
-    # Unix/Linux 检测逻辑
     auth_sock = os.environ.get('SSH_AUTH_SOCK')
     if not auth_sock:
         return False, "ssh-agent 未运行（SSH_AUTH_SOCK 未设置）"

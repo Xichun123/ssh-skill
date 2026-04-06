@@ -92,8 +92,7 @@ class NativeSSHClient:
             args.extend(["-o", "ForwardAgent=yes"])
 
         # ControlMaster（连接复用）
-        # 注意：Windows + 跳板机场景下 ControlMaster 可能不稳定，暂时禁用
-        # TODO: 后续优化 Windows 上的 ControlMaster 支持
+        # 当前默认禁用，避免与跳板机/多进程场景相互干扰。
         # control_path = self._get_control_path()
         # args.extend([
         #     "-o", "ControlMaster=auto",
@@ -206,7 +205,6 @@ class NativeSSHClient:
                 args.extend(["-o", f"ProxyJump={self.proxy_jump}"])
 
             # ControlMaster（复用 SSH 连接）
-            # 注意：Windows + 跳板机场景下 ControlMaster 可能不稳定，暂时禁用
             # control_path = self._get_control_path()
             # args.extend([
             #     "-o", "ControlMaster=auto",
@@ -287,7 +285,6 @@ class NativeSSHClient:
                 args.extend(["-o", f"ProxyJump={self.proxy_jump}"])
 
             # ControlMaster（复用 SSH 连接）
-            # 注意：Windows + 跳板机场景下 ControlMaster 可能不稳定，暂时禁用
             # control_path = self._get_control_path()
             # args.extend([
             #     "-o", "ControlMaster=auto",

@@ -13,11 +13,6 @@ import sys
 import os
 import re
 
-# 修复 Windows 终端 UTF-8 输出
-if sys.platform == 'win32':
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-
 
 def migrate_to_key_auth(alias, key_file):
     """

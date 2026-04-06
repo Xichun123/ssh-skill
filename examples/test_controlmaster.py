@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 import time
 
 # 测试配置（请替换）
@@ -17,11 +18,6 @@ HOST = "192.0.2.10"
 USER = "deploy"
 KEY_FILE = "./keys/example_id_ed25519"
 ITERATIONS = 10
-
-
-def _user_known_hosts_file_arg() -> str:
-    return "UserKnownHostsFile=NUL" if os.name == "nt" else "UserKnownHostsFile=/dev/null"
-
 
 def test_without_controlmaster() -> float:
     print("\n" + "=" * 60)
@@ -37,7 +33,7 @@ def test_without_controlmaster() -> float:
             "-o",
             "StrictHostKeyChecking=no",
             "-o",
-            _user_known_hosts_file_arg(),
+            "UserKnownHostsFile=/dev/null",
             f"{USER}@{HOST}",
             "echo test",
         ]
@@ -58,7 +54,7 @@ def test_with_controlmaster() -> float:
     print("测试2: ControlMaster方式（连接复用）")
     print("=" * 60)
 
-    control_path = os.path.join(os.environ.get("TEMP", "/tmp"), f"ssh-test-{USER}@{HOST}")
+    control_path = os.path.join(tempfile.gettempdir(), f"ssh-test-{USER}@{HOST}")
     if os.path.exists(control_path):
         try:
             os.remove(control_path)
@@ -74,7 +70,7 @@ def test_with_controlmaster() -> float:
             "-o",
             "StrictHostKeyChecking=no",
             "-o",
-            _user_known_hosts_file_arg(),
+            "UserKnownHostsFile=/dev/null",
             "-o",
             "ControlMaster=auto",
             "-o",
@@ -105,4 +101,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

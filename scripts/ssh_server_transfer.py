@@ -33,24 +33,10 @@ import json
 import time
 import argparse
 import posixpath
-import re
 
 # 添加 lib 到路径
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_script_dir, 'lib'))
-
-
-def _fix_remote_path(path):
-    """修复被 MSYS bash 转换的远程路径（Windows 环境）"""
-    if re.match(r'^[A-Za-z]:[/\\]', path):
-        print(json.dumps({
-            'success': False,
-            'error': f'远程路径被 Windows MSYS 转换: {path}. '
-                     f'请使用 MSYS_NO_PATHCONV=1 前缀或用引号包裹路径。'
-        }, ensure_ascii=False, indent=2), file=sys.stderr)
-        sys.exit(1)
-    return path
-
 
 def _human_size(size_bytes):
     """将字节数转为人类可读格式"""
@@ -65,22 +51,7 @@ def _human_size(size_bytes):
 
 def check_ssh_agent():
     """检查本地是否有 SSH agent 运行"""
-    # Unix/Linux/macOS
-    if 'SSH_AUTH_SOCK' in os.environ:
-        return True
-    # Windows OpenSSH agent
-    if os.name == 'nt':
-        try:
-            import subprocess
-            result = subprocess.run(
-                ['ssh-add', '-l'],
-                capture_output=True, text=True, timeout=5
-            )
-            # exit code 0 = 有密钥，1 = agent 运行但无密钥
-            return result.returncode in (0, 1)
-        except Exception:
-            pass
-    return False
+    return 'SSH_AUTH_SOCK' in os.environ
 
 
 def get_connection_params(alias):
@@ -683,9 +654,8 @@ def main():
 
     args = parser.parse_args()
 
-    # 修复 MSYS 路径转换
-    source_path = _fix_remote_path(args.source_path)
-    dest_path = _fix_remote_path(args.dest_path)
+    source_path = args.source_path
+    dest_path = args.dest_path
 
     show_progress = not args.no_progress
 
