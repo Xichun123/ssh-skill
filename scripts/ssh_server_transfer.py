@@ -597,11 +597,34 @@ def server_transfer(source_alias, source_path, dest_alias, dest_path,
                     # 强制直连但无 agent，仍然尝试（可能有预配置密钥）
                     pass
 
-            return direct_transfer(
+            direct_result = direct_transfer(
                 source_alias, source_path,
                 dest_alias, dest_path,
                 use_rsync, progress, timeout
             )
+
+            if mode == 'hybrid' and not direct_result.get('success'):
+                fallback_reason = (
+                    direct_result.get('error')
+                    or direct_result.get('stderr')
+                    or direct_result.get('output')
+                    or f"直连模式失败（exit_code={direct_result.get('exit_code')})"
+                )
+                if progress:
+                    sys.stderr.write(json.dumps({
+                        'status': 'fallback',
+                        'reason': f'直连模式失败: {fallback_reason}，自动降级到流式转发'
+                    }, ensure_ascii=False) + '\n')
+                    sys.stderr.flush()
+
+                stream_result = stream_transfer(
+                    source_alias, source_path,
+                    dest_alias, dest_path, progress
+                )
+                stream_result['fallback_from'] = direct_result
+                return stream_result
+
+            return direct_result
 
         elif selected_mode == 'stream':
             return stream_transfer(
