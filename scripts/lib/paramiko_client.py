@@ -9,6 +9,7 @@ import paramiko
 import threading
 import time
 import os
+import shlex
 from typing import Optional, List, Union, Dict, Iterator
 from dataclasses import dataclass
 from io import StringIO
@@ -595,6 +596,100 @@ class ParamikoClient:
                 stderr=f"Execution error: {str(e)}",
                 exit_code=-1
             )
+
+    @staticmethod
+    def _build_script_exec_command(remote_path: str, runner: Optional[List[str]] = None) -> str:
+        """构造执行远端临时脚本的命令"""
+        parts = list(runner or ['/bin/sh'])
+        parts.append(remote_path)
+        return " ".join(shlex.quote(part) for part in parts)
+
+    def execute_script(self, script_text: str, runner: Optional[List[str]] = None,
+                       timeout: Optional[int] = None) -> SSHResult:
+        """
+        上传脚本到远端临时文件并执行，避免脚本源码占用 stdin。
+
+        Args:
+            script_text: 脚本文本
+            runner: 解释器命令参数，未指定时默认 /bin/sh
+            timeout: 超时时间（秒）
+
+        Returns:
+            SSHResult对象
+        """
+        cmd_timeout = timeout or self.timeout
+        client = None
+        sftp = None
+        remote_path = None
+
+        try:
+            client = self._get_connection()
+
+            stdin, stdout, stderr = client.exec_command(
+                "umask 077 && mktemp /tmp/codex-ssh-script.XXXXXX",
+                timeout=cmd_timeout
+            )
+            mktemp_stdout = stdout.read().decode('utf-8', errors='replace')
+            mktemp_stderr = stderr.read().decode('utf-8', errors='replace')
+            mktemp_exit = stdout.channel.recv_exit_status()
+
+            remote_path = mktemp_stdout.strip().splitlines()[-1] if mktemp_stdout.strip() else ""
+            if mktemp_exit != 0 or not remote_path:
+                detail = mktemp_stderr.strip() or mktemp_stdout.strip() or "unknown error"
+                return SSHResult(
+                    success=False,
+                    stdout="",
+                    stderr=f"Create remote temp file failed: {detail}",
+                    exit_code=mktemp_exit if mktemp_exit != 0 else -1
+                )
+
+            sftp = client.open_sftp()
+            try:
+                sftp.get_channel().settimeout(cmd_timeout)
+            except Exception:
+                pass
+
+            with sftp.file(remote_path, 'wb') as remote_file:
+                remote_file.write(script_text.encode('utf-8'))
+                remote_file.flush()
+
+            exec_command = self._build_script_exec_command(remote_path, runner=runner)
+            stdin, stdout, stderr = client.exec_command(exec_command, timeout=cmd_timeout)
+
+            stdout_text = stdout.read().decode('utf-8', errors='replace')
+            stderr_text = stderr.read().decode('utf-8', errors='replace')
+            exit_code = stdout.channel.recv_exit_status()
+
+            return SSHResult(
+                success=(exit_code == 0),
+                stdout=stdout_text,
+                stderr=stderr_text,
+                exit_code=exit_code
+            )
+        except Exception as e:
+            return SSHResult(
+                success=False,
+                stdout="",
+                stderr=f"Execution error: {str(e)}",
+                exit_code=-1
+            )
+        finally:
+            if sftp is not None:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
+            if remote_path and client is not None:
+                try:
+                    cleanup_stdin, cleanup_stdout, cleanup_stderr = client.exec_command(
+                        f"rm -f -- {shlex.quote(remote_path)}",
+                        timeout=min(cmd_timeout, 10)
+                    )
+                    cleanup_stdout.channel.recv_exit_status()
+                except Exception:
+                    pass
+            if self.jump_hosts:
+                self._cleanup_jump_connections()
 
     def execute_with_agent_forward(self, command: str, timeout: Optional[int] = None) -> SSHResult:
         """

@@ -13,6 +13,7 @@
 import subprocess
 import os
 import tempfile
+import shlex
 from typing import Optional, Iterator
 from dataclasses import dataclass
 
@@ -110,6 +111,28 @@ class NativeSSHClient:
         safe_alias = self.alias.replace('/', '_').replace('@', '_').replace(':', '_')
         return os.path.join(temp_dir, f"ssh-control-{safe_alias}")
 
+    def _run_ssh_command(self, remote_command: str, timeout: Optional[int] = None) -> subprocess.CompletedProcess:
+        """执行单条远程命令"""
+        args = self._build_ssh_base_args()
+        args.append(f"{self.user}@{self.host}")
+        args.append(remote_command)
+        return subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=timeout or self.timeout
+        )
+
+    @staticmethod
+    def _build_script_exec_command(remote_path: str, runner: Optional[list[str]] = None) -> str:
+        """构造执行远端临时脚本的命令"""
+        parts = list(runner or ['/bin/sh'])
+        parts.append(remote_path)
+        return " ".join(shlex.quote(part) for part in parts)
+
     def execute(self, command: str) -> SSHResult:
         """
         执行SSH命令
@@ -121,19 +144,7 @@ class NativeSSHClient:
             SSHResult对象，包含执行结果
         """
         try:
-            args = self._build_ssh_base_args()
-            args.append(f"{self.user}@{self.host}")
-            args.append(command)
-
-            result = subprocess.run(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=self.timeout
-            )
+            result = self._run_ssh_command(command)
 
             return SSHResult(
                 success=(result.returncode == 0),
@@ -155,6 +166,96 @@ class NativeSSHClient:
                 stderr=f"Execution error: {str(e)}",
                 exit_code=-1
             )
+
+    def execute_script(self, script_text: str, runner: Optional[list[str]] = None,
+                       timeout: Optional[int] = None) -> SSHResult:
+        """
+        上传脚本到远端临时文件并执行，避免脚本源码占用 stdin。
+
+        Args:
+            script_text: 脚本文本
+            runner: 解释器命令参数，未指定时默认 /bin/sh
+            timeout: 超时时间（秒）
+
+        Returns:
+            SSHResult对象
+        """
+        actual_timeout = timeout if timeout is not None else self.timeout
+        local_path = None
+        remote_path = None
+
+        try:
+            mktemp_result = self._run_ssh_command(
+                "umask 077 && mktemp /tmp/codex-ssh-script.XXXXXX",
+                timeout=actual_timeout,
+            )
+            if mktemp_result.returncode != 0:
+                detail = mktemp_result.stderr.strip() or mktemp_result.stdout.strip() or "unknown error"
+                return SSHResult(
+                    success=False,
+                    stdout="",
+                    stderr=f"Create remote temp file failed: {detail}",
+                    exit_code=mktemp_result.returncode or -1
+                )
+
+            remote_path = mktemp_result.stdout.strip().splitlines()[-1] if mktemp_result.stdout.strip() else ""
+            if not remote_path:
+                return SSHResult(
+                    success=False,
+                    stdout="",
+                    stderr="Create remote temp file failed: empty path returned",
+                    exit_code=-1
+                )
+
+            fd, local_path = tempfile.mkstemp(prefix='codex-ssh-script-', text=True)
+            with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
+                f.write(script_text)
+
+            upload_result = self.upload(local_path, remote_path, timeout=actual_timeout, show_progress=False)
+            if not upload_result.success:
+                detail = upload_result.stderr or upload_result.stdout or "unknown error"
+                return SSHResult(
+                    success=False,
+                    stdout="",
+                    stderr=f"Upload script failed: {detail}",
+                    exit_code=upload_result.exit_code
+                )
+
+            result = self._run_ssh_command(
+                self._build_script_exec_command(remote_path, runner=runner),
+                timeout=actual_timeout,
+            )
+            return SSHResult(
+                success=(result.returncode == 0),
+                stdout=result.stdout,
+                stderr=result.stderr,
+                exit_code=result.returncode
+            )
+        except subprocess.TimeoutExpired:
+            return SSHResult(
+                success=False,
+                stdout="",
+                stderr=f"Command timeout after {actual_timeout} seconds",
+                exit_code=-1
+            )
+        except Exception as e:
+            return SSHResult(
+                success=False,
+                stdout="",
+                stderr=f"Execution error: {str(e)}",
+                exit_code=-1
+            )
+        finally:
+            if local_path and os.path.exists(local_path):
+                os.remove(local_path)
+            if remote_path:
+                try:
+                    self._run_ssh_command(
+                        f"rm -f -- {shlex.quote(remote_path)}",
+                        timeout=min(actual_timeout, 10),
+                    )
+                except Exception:
+                    pass
 
     def upload(self, local_path: str, remote_path: str, timeout: Optional[int] = None, show_progress: bool = True) -> SSHResult:
         """

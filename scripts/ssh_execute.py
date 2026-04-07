@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SSH命令执行CLI工具 v3.0
+SSH命令执行CLI工具 v3.1
 
 支持通过别名执行SSH命令，从标准 SSH config 和注释元数据中加载配置。
-自动检测守护进程：有则走长连接，无则走直连。
+简单命令自动检测守护进程：有则走长连接，无则走直连。
+脚本模式会先上传到远端临时文件，再按 shebang 或 /bin/sh 执行。
 
 用法：
     python ssh_execute.py <alias> <command> [--timeout TIMEOUT]
     python ssh_execute.py <alias> <command> --no-daemon
+    python ssh_execute.py <alias> --stdin
+    python ssh_execute.py <alias> --script-file ./deploy.sh
 
 示例：
     python ssh_execute.py prod-web-01 "whoami && hostname"
     python ssh_execute.py DEV-002 "df -h" --timeout 60
+    cat ./deploy.sh | python ssh_execute.py prod-web-01 --stdin
 """
 
 import sys
@@ -22,6 +26,7 @@ import socket
 import struct
 import argparse
 import subprocess
+import shlex
 
 # 添加lib到路径
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +64,69 @@ def _recv_message(sock, timeout=None):
         body += chunk
 
     return json.loads(body.decode('utf-8'))
+
+
+def _resolve_script_runner(script_text):
+    """根据 shebang 选择解释器；未声明时默认用 /bin/sh"""
+    first_line = script_text.splitlines()[0] if script_text.splitlines() else ''
+    if not first_line.startswith('#!'):
+        return ['/bin/sh']
+
+    shebang = first_line[2:].strip()
+    if not shebang:
+        return ['/bin/sh']
+
+    try:
+        tokens = shlex.split(shebang)
+    except ValueError as e:
+        raise ValueError(f"无法解析脚本 shebang: {e}") from e
+
+    if not tokens:
+        return ['/bin/sh']
+
+    if os.path.basename(tokens[0]) == 'env' and len(tokens) >= 2 and tokens[1] == '-S':
+        if len(tokens) == 2:
+            raise ValueError("脚本 shebang 使用了 env -S，但未指定解释器")
+        return [tokens[0], '-S', shlex.join(tokens[2:])]
+
+    return tokens
+
+
+def _resolve_command(args):
+    """解析命令来源：直接命令、stdin 或脚本文件"""
+    sources = [
+        args.command is not None,
+        args.stdin,
+        args.script_file is not None,
+    ]
+    enabled_sources = sum(1 for enabled in sources if enabled)
+
+    if enabled_sources == 0:
+        raise ValueError("必须提供 <command>，或使用 --stdin / --script-file")
+    if enabled_sources > 1:
+        raise ValueError("<command>、--stdin 和 --script-file 只能选择一种")
+
+    if args.command is not None:
+        return {
+            'mode': 'command',
+            'command': args.command,
+        }
+
+    if args.script_file is not None:
+        script_path = os.path.expanduser(args.script_file)
+        with open(script_path, 'r', encoding='utf-8') as f:
+            script_text = f.read()
+    else:
+        script_text = sys.stdin.read()
+
+    if not script_text.strip():
+        raise ValueError("脚本内容为空")
+
+    return {
+        'mode': 'script',
+        'script_text': script_text,
+        'runner': _resolve_script_runner(script_text),
+    }
 
 
 def try_daemon_execute(alias, command, timeout):
@@ -107,10 +175,15 @@ def start_daemon_background(alias):
         return False
 
 
-def direct_execute(alias, command, timeout):
+def direct_execute(alias, command_spec, timeout):
     """直连执行命令（智能选择客户端类型，支持降级到原生 SSH）"""
     from config_v3 import SSHConfigLoaderV3
-    from native_ssh_fallback import should_use_native_ssh, execute_native_ssh, check_ssh_agent
+    from native_ssh_fallback import (
+        should_use_native_ssh,
+        execute_native_ssh,
+        execute_native_ssh_script,
+        check_ssh_agent,
+    )
 
     loader = SSHConfigLoaderV3()
 
@@ -140,7 +213,15 @@ def direct_execute(alias, command, timeout):
             print(f"\n现在将使用原生 SSH（需要交互式输入 passphrase）...\n", file=sys.stderr)
 
         # 使用原生 SSH 执行
-        result = execute_native_ssh(alias, command, timeout)
+        if command_spec['mode'] == 'script':
+            result = execute_native_ssh_script(
+                alias,
+                command_spec['script_text'],
+                runner=command_spec['runner'],
+                timeout=timeout,
+            )
+        else:
+            result = execute_native_ssh(alias, command_spec['command'], timeout)
         result['fallback_reason'] = reason
         return result
 
@@ -150,7 +231,14 @@ def direct_execute(alias, command, timeout):
     # 设置超时
     client.timeout = timeout
 
-    result = client.execute(command)
+    if command_spec['mode'] == 'script':
+        result = client.execute_script(
+            command_spec['script_text'],
+            runner=command_spec['runner'],
+            timeout=timeout,
+        )
+    else:
+        result = client.execute(command_spec['command'])
     return {
         'success': result.success,
         'exit_code': result.exit_code,
@@ -160,41 +248,49 @@ def direct_execute(alias, command, timeout):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='SSH command execution tool v3.0')
+    parser = argparse.ArgumentParser(description='SSH command execution tool v3.1')
     parser.add_argument('alias', help='SSH host alias from ~/.ssh/config')
-    parser.add_argument('command', help='Command to execute')
+    parser.add_argument('command', nargs='?', help='Command to execute')
     parser.add_argument('--timeout', type=int, help='Timeout in seconds')
     parser.add_argument('--no-daemon', action='store_true',
                         help='Disable daemon mode, use direct SSH connection')
+    parser.add_argument('--stdin', action='store_true',
+                        help='Read a remote shell script from stdin')
+    parser.add_argument('--script-file',
+                        help='Read a remote shell script from a local file')
 
     args = parser.parse_args()
     timeout = args.timeout or 30
 
     try:
+        command_spec = _resolve_command(args)
         result = None
 
         # 智能判断是否使用守护进程
-        # 守护进程只对密码认证有意义（Paramiko），密钥认证使用原生 SSH 不需要守护进程
+        # 守护进程只透传单条命令；脚本模式需要先上传到远端临时文件再执行。
         from config_v3 import SSHConfigLoaderV3
         loader = SSHConfigLoaderV3()
         params = loader.get_connection_params(args.alias)
 
-        has_key = params.get('key_file') is not None
         has_password = params.get('password') is not None
-        use_daemon = has_password and not args.no_daemon  # 只有密码认证才使用守护进程
+        use_daemon = (
+            has_password
+            and not args.no_daemon
+            and command_spec['mode'] == 'command'
+        )
 
         if use_daemon:
             # 密码认证：尝试通过守护进程执行
-            result = try_daemon_execute(args.alias, args.command, timeout)
+            result = try_daemon_execute(args.alias, command_spec['command'], timeout)
 
             # 守护进程不可用，尝试后台启动
             if result is None:
                 if start_daemon_background(args.alias):
-                    result = try_daemon_execute(args.alias, args.command, timeout)
+                    result = try_daemon_execute(args.alias, command_spec['command'], timeout)
 
         # 仍然没有结果，使用直连（密钥认证会使用 NativeSSHClient）
         if result is None:
-            result = direct_execute(args.alias, args.command, timeout)
+            result = direct_execute(args.alias, command_spec, timeout)
 
         print(json.dumps(result, ensure_ascii=True, indent=2))
         sys.exit(0 if result.get('success') else 1)
@@ -212,7 +308,7 @@ def main():
             'success': False,
             'exit_code': -1,
             'stdout': '',
-            'stderr': f'Invalid alias: {e}'
+            'stderr': f'Invalid input: {e}'
         }, ensure_ascii=True, indent=2), file=sys.stderr)
         sys.exit(1)
     except Exception as e:

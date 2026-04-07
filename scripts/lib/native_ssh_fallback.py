@@ -7,7 +7,41 @@
 
 import subprocess
 import os
+import shlex
+import tempfile
 from typing import Optional, Dict, Tuple
+
+
+def _run_ssh_command(
+    alias: str,
+    remote_command: str,
+    timeout: int,
+    ssh_config_path: str
+) -> subprocess.CompletedProcess:
+    """执行一条原生 SSH 远程命令"""
+    ssh_cmd = [
+        'ssh',
+        '-F', ssh_config_path,
+        '-o', 'BatchMode=yes',
+        '-o', 'StrictHostKeyChecking=accept-new',
+        alias,
+        remote_command
+    ]
+    return subprocess.run(
+        ssh_cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        encoding='utf-8',
+        errors='replace'
+    )
+
+
+def _build_script_exec_command(remote_path: str, runner: Optional[list[str]] = None) -> str:
+    """构造执行远端临时脚本的命令"""
+    parts = list(runner or ['/bin/sh'])
+    parts.append(remote_path)
+    return " ".join(shlex.quote(part) for part in parts)
 
 
 def should_use_native_ssh(ssh_config: dict, metadata: dict = None) -> Tuple[bool, str]:
@@ -137,24 +171,8 @@ def execute_native_ssh(
     if ssh_config_path is None:
         ssh_config_path = os.path.expanduser("~/.ssh/config")
 
-    ssh_cmd = [
-        'ssh',
-        '-F', ssh_config_path,
-        '-o', 'BatchMode=yes',
-        '-o', 'StrictHostKeyChecking=accept-new',
-        alias,
-        command
-    ]
-
     try:
-        result = subprocess.run(
-            ssh_cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            encoding='utf-8',
-            errors='replace'
-        )
+        result = _run_ssh_command(alias, command, timeout, ssh_config_path)
 
         return {
             'success': result.returncode == 0,
@@ -181,6 +199,133 @@ def execute_native_ssh(
             'stderr': f'执行失败: {str(e)}',
             'method': 'native_ssh'
         }
+
+
+def execute_native_ssh_script(
+    alias: str,
+    script_text: str,
+    runner: Optional[list[str]] = None,
+    timeout: int = 120,
+    ssh_config_path: Optional[str] = None
+) -> Dict:
+    """
+    使用原生 ssh/scp 上传脚本到远端临时文件并执行。
+
+    Args:
+        alias: SSH 别名
+        script_text: 脚本文本
+        runner: 解释器命令参数，未指定时默认 /bin/sh
+        timeout: 超时时间（秒）
+        ssh_config_path: SSH 配置文件路径（默认 ~/.ssh/config）
+
+    Returns:
+        结果字典 {success, exit_code, stdout, stderr}
+    """
+    if ssh_config_path is None:
+        ssh_config_path = os.path.expanduser("~/.ssh/config")
+
+    local_path = None
+    remote_path = None
+
+    try:
+        mktemp_result = _run_ssh_command(
+            alias,
+            "umask 077 && mktemp /tmp/codex-ssh-script.XXXXXX",
+            timeout,
+            ssh_config_path,
+        )
+        if mktemp_result.returncode != 0:
+            detail = mktemp_result.stderr.strip() or mktemp_result.stdout.strip() or "unknown error"
+            return {
+                'success': False,
+                'exit_code': mktemp_result.returncode or -1,
+                'stdout': '',
+                'stderr': f'创建远端临时脚本失败: {detail}',
+                'method': 'native_ssh'
+            }
+
+        remote_path = mktemp_result.stdout.strip().splitlines()[-1] if mktemp_result.stdout.strip() else ''
+        if not remote_path:
+            return {
+                'success': False,
+                'exit_code': -1,
+                'stdout': '',
+                'stderr': '创建远端临时脚本失败: 未返回路径',
+                'method': 'native_ssh'
+            }
+
+        fd, local_path = tempfile.mkstemp(prefix='codex-ssh-script-', text=True)
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
+            f.write(script_text)
+
+        scp_cmd = [
+            'scp',
+            '-F', ssh_config_path,
+            '-o', 'BatchMode=yes',
+            '-o', 'StrictHostKeyChecking=accept-new',
+            local_path,
+            f'{alias}:{remote_path}'
+        ]
+        upload_result = subprocess.run(
+            scp_cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding='utf-8',
+            errors='replace'
+        )
+        if upload_result.returncode != 0:
+            detail = upload_result.stderr.strip() or upload_result.stdout.strip() or "unknown error"
+            return {
+                'success': False,
+                'exit_code': upload_result.returncode,
+                'stdout': '',
+                'stderr': f'上传远端临时脚本失败: {detail}',
+                'method': 'native_ssh'
+            }
+
+        result = _run_ssh_command(
+            alias,
+            _build_script_exec_command(remote_path, runner=runner),
+            timeout,
+            ssh_config_path,
+        )
+        return {
+            'success': result.returncode == 0,
+            'exit_code': result.returncode,
+            'stdout': result.stdout,
+            'stderr': result.stderr,
+            'method': 'native_ssh'
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            'success': False,
+            'exit_code': -1,
+            'stdout': '',
+            'stderr': f'命令执行超时（{timeout}秒）',
+            'method': 'native_ssh'
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'exit_code': -1,
+            'stdout': '',
+            'stderr': f'执行失败: {str(e)}',
+            'method': 'native_ssh'
+        }
+    finally:
+        if local_path and os.path.exists(local_path):
+            os.remove(local_path)
+        if remote_path:
+            try:
+                _run_ssh_command(
+                    alias,
+                    f"rm -f -- {shlex.quote(remote_path)}",
+                    min(timeout, 10),
+                    ssh_config_path,
+                )
+            except Exception:
+                pass
 
 
 def check_ssh_agent() -> Tuple[bool, str]:
