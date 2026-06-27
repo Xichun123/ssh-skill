@@ -626,7 +626,7 @@ class ParamikoClient:
             client = self._get_connection()
 
             stdin, stdout, stderr = client.exec_command(
-                "umask 077 && mktemp /tmp/codex-ssh-script.XXXXXX",
+                "umask 077 && mktemp /tmp/agent-ssh-script.XXXXXX",
                 timeout=cmd_timeout
             )
             mktemp_stdout = stdout.read().decode('utf-8', errors='replace')

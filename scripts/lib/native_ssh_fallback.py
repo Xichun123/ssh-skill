@@ -230,7 +230,7 @@ def execute_native_ssh_script(
     try:
         mktemp_result = _run_ssh_command(
             alias,
-            "umask 077 && mktemp /tmp/codex-ssh-script.XXXXXX",
+            "umask 077 && mktemp /tmp/agent-ssh-script.XXXXXX",
             timeout,
             ssh_config_path,
         )
@@ -254,7 +254,7 @@ def execute_native_ssh_script(
                 'method': 'native_ssh'
             }
 
-        fd, local_path = tempfile.mkstemp(prefix='codex-ssh-script-', text=True)
+        fd, local_path = tempfile.mkstemp(prefix='agent-ssh-script-', text=True)
         with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
             f.write(script_text)
 

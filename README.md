@@ -2,7 +2,7 @@
 
 **中文**
 
-> 为 Codex 打造的企业级 SSH 管理工具，让远程服务器操作像本地一样简单高效
+> 为 AI Agent 打造的企业级 SSH 管理工具，让远程服务器操作像本地一样简单高效
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -28,7 +28,7 @@
 | **守护进程** | **~0.12s** | **~1.2s** | **~3.6s** | **🔥 3.75x** |
 
 - 首次连接自动启动守护进程
-- 多个 Codex 会话共享连接
+- 多个 AI Agent 会话共享连接
 - 自动心跳检测和断线重连
 - 空闲 30 分钟自动退出
 
@@ -150,7 +150,7 @@ pip install paramiko
 
 ### 配置
 
-1. 将 `ssh-skill` 目录放到 `~/.codex/skills/` 下
+1. 将 `ssh-skill` 目录放到 `~/.agents/skills/` 下
 2. 配置 SSH 密钥或密码认证
 3. 开始使用！
 
@@ -159,35 +159,35 @@ pip install paramiko
 ### 执行远程命令
 
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py prod-web-01 "systemctl status nginx"
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py prod-web-01 "systemctl status nginx"
 ```
 
 ### 上传文件
 
 ```bash
 # 小文件（快速）
-python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
+python ~/.agents/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./app.tar.gz /tmp/
 
 # 大文件（自动显示进度）
-python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
+python ~/.agents/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/
 
 # 断点续传
-python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
+python ~/.agents/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./large-file.iso /tmp/ --resume
 
 # 递归上传目录
-python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
+python ~/.agents/skills/ssh-skill/scripts/ssh_upload.py prod-web-01 ./dist/ /var/www/html/ --recursive
 ```
 
 ### 下载文件
 
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
+python ~/.agents/skills/ssh-skill/scripts/ssh_download.py prod-web-01 /var/log/app.log ./app.log
 ```
 
 ### 服务器间传输
 
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
+python ~/.agents/skills/ssh-skill/scripts/ssh_server_transfer.py source-server /data/backup.tar.gz target-server /backup/
 ```
 
 ## 🎯 使用场景
@@ -357,9 +357,9 @@ Host internal-server
     ProxyJump bastion
 ```
 
-## 🎨 与 Codex 集成
+## 🎨 与 AI Agent 集成
 
-在 Codex 中，AI 会在检测到 SSH 或远程服务器意图时自动使用 ssh-skill；你也可以显式提到 `$ssh-skill` 强制调用：
+在支持 Skill 的 AI Agent 中，AI 会在检测到 SSH 或远程服务器意图时自动使用 ssh-skill；你也可以显式提到 `$ssh-skill` 强制调用：
 
 ```
 用户：在 prod-web-01 上检查 Nginx 状态

@@ -186,7 +186,7 @@ class NativeSSHClient:
 
         try:
             mktemp_result = self._run_ssh_command(
-                "umask 077 && mktemp /tmp/codex-ssh-script.XXXXXX",
+                "umask 077 && mktemp /tmp/agent-ssh-script.XXXXXX",
                 timeout=actual_timeout,
             )
             if mktemp_result.returncode != 0:
@@ -207,7 +207,7 @@ class NativeSSHClient:
                     exit_code=-1
                 )
 
-            fd, local_path = tempfile.mkstemp(prefix='codex-ssh-script-', text=True)
+            fd, local_path = tempfile.mkstemp(prefix='agent-ssh-script-', text=True)
             with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
                 f.write(script_text)
 

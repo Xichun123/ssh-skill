@@ -1,11 +1,11 @@
 ---
 name: ssh-skill
-description: "Use for SSH and remote server operations in Codex. Trigger when the user mentions SSH, remote hosts, server IPs or hostnames, logging into a server, running commands remotely, upload or download, deployment, migration, bastion or jump hosts, tunnels, port forwarding, database access over SSH, internal service access, or server-to-server transfer. Prefer this skill over raw ssh/scp commands because it provides persistent connections, jump host support, transfer helpers, and recovery logic. Do not use for localhost or purely local shell work."
+description: "Use for SSH and remote server operations in AI agent environments. Trigger when the user mentions SSH, remote hosts, server IPs or hostnames, logging into a server, running commands remotely, upload or download, deployment, migration, bastion or jump hosts, tunnels, port forwarding, database access over SSH, internal service access, or server-to-server transfer. Prefer this skill over raw ssh/scp commands because it provides persistent connections, jump host support, transfer helpers, and recovery logic. Do not use for localhost or purely local shell work."
 ---
 
 # SSH Skill v3.3
 
-面向 Codex 的高性能 SSH 操作技能，支持守护进程长连接、自动连接复用、跳板机、批量并发、服务器间直接传输、自动错误恢复。
+面向 AI Agent 的高性能 SSH 操作技能，支持守护进程长连接、自动连接复用、跳板机、批量并发、服务器间直接传输、自动错误恢复。
 
 ## 显式调用
 
@@ -17,7 +17,7 @@ description: "Use for SSH and remote server operations in Codex. Trigger when th
 
 1. 运行命令获取数据：
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py list-servers
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py list-servers
 ```
 2. 解析返回的 JSON 数据
 3. 以 **Markdown 表格** 格式展示，列：序号、别名、备注(description)、标签(tags)、位置(location)、认证方式(auth)、用户名(user)
@@ -42,7 +42,7 @@ python ~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py list-servers
 
 **核心特点：**
 - 守护进程长连接：首次连接后自动启动守护进程，后续命令响应时间从 ~0.45s 降至 ~0.12s
-- 自动连接复用：多个 Codex 会话可共享同一守护进程
+- 自动连接复用：多个 AI Agent 会话可共享同一守护进程
 - SFTP 高级传输：支持断点续传、进度显示、目录递归上传/下载
 - 服务器间直接传输：支持服务器到服务器的文件直接传输，无需本地中转
 - SSH 隧道：支持本地端口转发，访问远程内网服务（数据库、Web 服务等）
@@ -113,35 +113,35 @@ python ~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py list-servers
 
 ### 路径说明
 
-**默认路径**：`~/.codex/skills/ssh-skill/scripts`
+**默认路径**：`~/.agents/skills/ssh-skill/scripts`
 - `~` 会自动展开为用户家目录
-- macOS: `~/.codex/skills/ssh-skill/scripts`
+- macOS: `~/.agents/skills/ssh-skill/scripts`
 
-**项目目录中的 skill**：如果 skill 放在项目的 `.codex/skills/ssh-skill/` 中，使用相对路径：
+**项目目录中的 skill**：如果 skill 放在项目的 `.agents/skills/ssh-skill/` 中，使用相对路径：
 ```
-.codex/skills/ssh-skill/scripts
+.agents/skills/ssh-skill/scripts
 ```
 
-**迁移说明**：Codex 默认使用 `~/.codex/skills/`。如果你仍保留旧的 Claude 安装路径 `~/.claude/skills/`，只需把下面命令中的 `~/.codex` 替换为 `~/.claude`。
+**兼容说明**：默认使用当前 Agent 环境路径 `~/.agents/skills/`。如果你的运行环境使用其他 skill 目录，只需把下面命令中的 `~/.agents` 替换为对应目录。
 
-**路径自动识别**：Python 的 `os.path.expanduser()` 会自动处理 `~`，无需手动替换。
+**路径展开说明**：命令中的 `~` 需要由 shell 展开，示例里不要把脚本路径写成 `"~/.agents/..."`；脚本参数中的 `~` 会由 Python 的 `os.path.expanduser()` 处理。
 
 ### 调用格式（唯一正确方式）
 
-**MUST**: 使用 `python ~/.codex/skills/ssh-skill/scripts/脚本名.py` 格式。使用别名（alias）标识服务器。
+**MUST**: 使用 `python ~/.agents/skills/ssh-skill/scripts/脚本名.py` 格式。使用别名（alias）标识服务器。
 
 **NEVER**: 不要使用 `cd` 到脚本目录再执行，不要使用反斜杠 `\`，不要直接写 `ssh` 或 `scp` 命令。
 
 ### 执行远程命令
 
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py <别名> "<命令>"
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py <别名> "<命令>"
 
 # 多行脚本或复杂 shell：从 stdin 读取，避免本地 shell 先展开
-cat ./deploy.sh | python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py <别名> --stdin
+cat ./deploy.sh | python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py <别名> --stdin
 
 # 多行脚本或复杂 shell：直接读取本地脚本文件
-python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py <别名> --script-file ./deploy.sh
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py <别名> --script-file ./deploy.sh
 ```
 
 可选参数：`--timeout <秒>` `--no-daemon` `--stdin` `--script-file <本地脚本>`
@@ -164,7 +164,7 @@ ssh_execute.py 会自动检测守护进程：简单命令有则走长连接（~0
 安全示例：
 
 ```bash
-cat <<'EOF' | python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py dm --stdin
+cat <<'EOF' | python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py dm --stdin
 cat >/opt/car-rental-manager/.env <<'ENVEOF'
 SECRET_KEY=固定随机串
 ENV=production
@@ -173,7 +173,7 @@ EOF
 ```
 
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py dm --script-file ./remote_deploy.sh
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py dm --script-file ./remote_deploy.sh
 ```
 
 原则：
@@ -185,7 +185,7 @@ python ~/.codex/skills/ssh-skill/scripts/ssh_execute.py dm --script-file ./remot
 ### 上传文件
 
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py <别名> "<本地路径>" "<远程路径>"
+python ~/.agents/skills/ssh-skill/scripts/ssh_upload.py <别名> "<本地路径>" "<远程路径>"
 ```
 
 可选参数：`--resume`（断点续传） `--recursive`（目录递归上传） `--no-progress`（禁用进度输出）
@@ -193,7 +193,7 @@ python ~/.codex/skills/ssh-skill/scripts/ssh_upload.py <别名> "<本地路径>"
 ### 下载文件
 
 ```bash
-python ~/.codex/skills/ssh-skill/scripts/ssh_download.py <别名> "<远程路径>" "<本地路径>"
+python ~/.agents/skills/ssh-skill/scripts/ssh_download.py <别名> "<远程路径>" "<本地路径>"
 ```
 
 可选参数：`--resume`（断点续传） `--recursive`（目录递归下载） `--no-progress`（禁用进度输出）
@@ -202,19 +202,19 @@ python ~/.codex/skills/ssh-skill/scripts/ssh_download.py <别名> "<远程路径
 
 ```bash
 # 自动模式（推荐）- 根据文件大小和网络环境自动选择最优方式
-python "~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py" <源别名> "<源路径>" <目标别名> "<目标路径>"
+python ~/.agents/skills/ssh-skill/scripts/ssh_server_transfer.py <源别名> "<源路径>" <目标别名> "<目标路径>"
 
 # 强制直连模式（大文件推荐，数据直接在服务器间传输）
-python "~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py" <源别名> "<源路径>" <目标别名> "<目标路径>" --mode direct
+python ~/.agents/skills/ssh-skill/scripts/ssh_server_transfer.py <源别名> "<源路径>" <目标别名> "<目标路径>" --mode direct
 
 # 强制流式转发（小文件或服务器间网络不通时）
-python "~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py" <源别名> "<源路径>" <目标别名> "<目标路径>" --mode stream
+python ~/.agents/skills/ssh-skill/scripts/ssh_server_transfer.py <源别名> "<源路径>" <目标别名> "<目标路径>" --mode stream
 
 # 混合模式（先尝试直连，失败后自动降级到流式）
-python "~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py" <源别名> "<源路径>" <目标别名> "<目标路径>" --mode hybrid
+python ~/.agents/skills/ssh-skill/scripts/ssh_server_transfer.py <源别名> "<源路径>" <目标别名> "<目标路径>" --mode hybrid
 
 # 使用 rsync（仅直连模式，支持增量同步）
-python "~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py" <源别名> "<源路径>" <目标别名> "<目标路径>" --use-rsync
+python ~/.agents/skills/ssh-skill/scripts/ssh_server_transfer.py <源别名> "<源路径>" <目标别名> "<目标路径>" --use-rsync
 ```
 
 可选参数：`--mode <auto|direct|stream|hybrid>`（传输模式） `--use-rsync`（使用 rsync） `--no-progress`（禁用进度） `--size-threshold <MB>`（大小阈值，默认 10） `--timeout <秒>`（超时，默认 300）
@@ -232,16 +232,16 @@ python "~/.codex/skills/ssh-skill/scripts/ssh_server_transfer.py" <源别名> "<
 
 ```bash
 # 对所有服务器执行
-python "~/.codex/skills/ssh-skill/scripts/ssh_cluster.py" "<命令>" --parallel
+python ~/.agents/skills/ssh-skill/scripts/ssh_cluster.py "<命令>" --parallel
 
 # 对指定别名列表执行
-python "~/.codex/skills/ssh-skill/scripts/ssh_cluster.py" "<命令>" --hosts "DEV-002,DEV-003" --parallel
+python ~/.agents/skills/ssh-skill/scripts/ssh_cluster.py "<命令>" --hosts "DEV-002,DEV-003" --parallel
 
 # 按环境过滤
-python "~/.codex/skills/ssh-skill/scripts/ssh_cluster.py" "<命令>" --environment production --parallel
+python ~/.agents/skills/ssh-skill/scripts/ssh_cluster.py "<命令>" --environment production --parallel
 
 # 按标签过滤
-python "~/.codex/skills/ssh-skill/scripts/ssh_cluster.py" "<命令>" --tags "web,nginx" --parallel
+python ~/.agents/skills/ssh-skill/scripts/ssh_cluster.py "<命令>" --tags "web,nginx" --parallel
 ```
 
 可选参数：`--timeout <秒>` `--health-check` `--max-workers <数量>`
@@ -250,24 +250,24 @@ python "~/.codex/skills/ssh-skill/scripts/ssh_cluster.py" "<命令>" --tags "web
 
 ```bash
 # 列出所有服务器
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" list-servers
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py list-servers
 
 # 按环境过滤
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" list-servers --environment production
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py list-servers --environment production
 
 # 查找服务器（支持别名和描述模糊查找）
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" find "<关键词>"
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py find "<关键词>"
 
 # 创建配置
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" create --alias <别名> --host <IP> --user <用户名> --key <密钥文件> --environment <环境>
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py create --alias <别名> --host <IP> --user <用户名> --key <密钥文件> --environment <环境>
 
 # 更新配置（只更新提供的字段，其他字段保持不变）
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" update <别名> --description "新描述" --tags tag1 tag2 tag3
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" update <别名> --environment production --location "新位置"
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" update <别名> --host <新IP> --port <新端口>
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py update <别名> --description "新描述" --tags tag1 tag2 tag3
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py update <别名> --environment production --location "新位置"
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py update <别名> --host <新IP> --port <新端口>
 
 # 删除配置
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" delete <别名>
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py delete <别名>
 ```
 
 ### SSH Tunnel（端口转发）
@@ -276,25 +276,25 @@ python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" delete <别�
 
 ```bash
 # 启动 tunnel（自动分配本地端口）
-python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" start <别名> --remote-port <端口>
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py start <别名> --remote-port <端口>
 
 # 指定本地端口
-python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" start <别名> --local-port <本地端口> --remote-port <远程端口>
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py start <别名> --local-port <本地端口> --remote-port <远程端口>
 
 # 转发到远程的其他主机
-python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" start <别名> --remote-host <远程主机> --remote-port <端口>
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py start <别名> --remote-host <远程主机> --remote-port <端口>
 
 # 列出所有活动的 tunnel
-python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" list
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py list
 
 # 查看 tunnel 状态
-python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" status <tunnel-id>
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py status <tunnel-id>
 
 # 停止 tunnel
-python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" stop <tunnel-id>
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py stop <tunnel-id>
 
 # 停止服务器的所有 tunnel
-python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" stop-all <别名>
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py stop-all <别名>
 ```
 
 **使用场景**：
@@ -313,14 +313,14 @@ python "~/.codex/skills/ssh-skill/scripts/ssh_tunnel.py" stop-all <别名>
 **示例**：
 ```bash
 # 连接远程 MySQL
-python ssh_tunnel.py start prod-db-01 --remote-port 3306
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py start prod-db-01 --remote-port 3306
 # 返回：本地端口 10001
 
 # 使用 tunnel 连接数据库
 mysql -h 127.0.0.1 -P 10001 -u root -p
 
 # 访问内部 Web 服务
-python ssh_tunnel.py start prod-web-01 --remote-port 8080
+python ~/.agents/skills/ssh-skill/scripts/ssh_tunnel.py start prod-web-01 --remote-port 8080
 # 然后在浏览器访问 http://127.0.0.1:10002
 ```
 
@@ -402,13 +402,13 @@ ssh_execute.py 首次调用时会自动启动守护进程，无需手动操作�
 
 ```bash
 # 启动守护进程（通常不需要手动启动）
-python "~/.codex/skills/ssh-skill/scripts/ssh_daemon.py" start <别名>
+python ~/.agents/skills/ssh-skill/scripts/ssh_daemon.py start <别名>
 
 # 查看守护进程状态
-python "~/.codex/skills/ssh-skill/scripts/ssh_daemon.py" status <别名>
+python ~/.agents/skills/ssh-skill/scripts/ssh_daemon.py status <别名>
 
 # 停止守护进程
-python "~/.codex/skills/ssh-skill/scripts/ssh_daemon.py" stop <别名>
+python ~/.agents/skills/ssh-skill/scripts/ssh_daemon.py stop <别名>
 ```
 
 可选参数：`--idle-timeout <秒>`（默认 1800，即 30 分钟）
@@ -416,7 +416,7 @@ python "~/.codex/skills/ssh-skill/scripts/ssh_daemon.py" stop <别名>
 ### 守护进程特性
 
 - 每台服务器独立守护进程，按别名隔离
-- 多个对话（多个 Codex 会话）可共享同一守护进程
+- 多个对话（多个 AI Agent 会话）可共享同一守护进程
 - SSH 连接断开自动重连（最多 3 次）
 - 每 60 秒心跳检测连接状态
 - 空闲超时自动退出，无需手动清理
@@ -436,13 +436,13 @@ python "~/.codex/skills/ssh-skill/scripts/ssh_daemon.py" stop <别名>
 
 ```bash
 # 好：一次调用获取多个信息
-python "SCRIPTS/ssh_execute.py" DEV-002 "hostname && uptime && df -h && free -m"
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py DEV-002 "hostname && uptime && df -h && free -m"
 
 # 差：多次调用分别获取
-python "SCRIPTS/ssh_execute.py" DEV-002 "hostname"
-python "SCRIPTS/ssh_execute.py" DEV-002 "uptime"
-python "SCRIPTS/ssh_execute.py" DEV-002 "df -h"
-python "SCRIPTS/ssh_execute.py" DEV-002 "free -m"
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py DEV-002 "hostname"
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py DEV-002 "uptime"
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py DEV-002 "df -h"
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py DEV-002 "free -m"
 ```
 
 ### 何时合并，何时分开
@@ -476,13 +476,13 @@ python "SCRIPTS/ssh_execute.py" DEV-002 "free -m"
 如果守护进程异常，可手动停止后重试：
 
 ```bash
-python "~/.codex/skills/ssh-skill/scripts/ssh_daemon.py" stop <别名>
+python ~/.agents/skills/ssh-skill/scripts/ssh_daemon.py stop <别名>
 ```
 
 或使用 `--no-daemon` 参数跳过守护进程直连：
 
 ```bash
-python "~/.codex/skills/ssh-skill/scripts/ssh_execute.py" <别名> "<命令>" --no-daemon
+python ~/.agents/skills/ssh-skill/scripts/ssh_execute.py <别名> "<命令>" --no-daemon
 ```
 
 ### 别名不存在
@@ -490,7 +490,7 @@ python "~/.codex/skills/ssh-skill/scripts/ssh_execute.py" <别名> "<命令>" --
 如果提示别名不存在，可通过配置管理工具查找：
 
 ```bash
-python "~/.codex/skills/ssh-skill/scripts/ssh_config_manager_v3.py" find "<关键词>"
+python ~/.agents/skills/ssh-skill/scripts/ssh_config_manager_v3.py find "<关键词>"
 ```
 
 ## 强制规则
