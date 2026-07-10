@@ -148,11 +148,25 @@ ssh_cluster.py "df -h" --tags "web,nginx" --parallel --max-workers 10
 pip install paramiko
 ```
 
-### 配置
+### 使用 skills CLI（推荐）
 
-1. 将 `ssh-skill` 目录放到 `~/.agents/skills/` 下
-2. 配置 SSH 密钥或密码认证
-3. 开始使用！
+```bash
+skills add Xichun123/ssh-skill --skill ssh-skill -g -a universal -y
+```
+
+安装后脚本位于：
+
+```text
+~/.agents/skills/ssh-skill/scripts/
+```
+
+### 手动安装
+
+```bash
+cp -R skills/ssh-skill ~/.agents/skills/ssh-skill
+```
+
+然后配置 SSH 密钥或密码认证即可开始使用。
 
 ## 🎬 快速开始
 
